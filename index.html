@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+ <head>
+ 	<title>ScenePT Demoilta#9 - 7 Março 2015</title>
+ 	<meta charset='utf-8'>
+ 	<style>
+ 	@font-face {
+		font-family: 'Neuropol';
+		src: url('NEUROPOL.ttf') format('truetype');
+		font-weight: normal;
+		font-style: normal;
+	}
+	
+	* {
+		margin: 0px;
+		padding: 0px;
+		overflow: hidden;
+	}
+	
+	body {
+		/*background: url('gloomy-stripes-dark-background-tile.jpg');*/
+		background: yellow;
+		overflow: hidden;
+	}
+ 	.aligncenter {
+ 		position: absolute;
+ 		top: 0px;
+ 		width: 100%;
+ 		text-align: center;
+ 		margin: auto;
+ 	}
+	
+	#message {
+		position: absolute;
+		top: 0px;
+		left: 0px;
+		font-family: 'Neuropol';
+		color: #fff;
+		width: 100%;
+		height: 100%;
+		margin: auto;
+		text-align: center;
+		font-size: 2em;
+		overflow-y: hidden;
+		text-shadow: 2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 1px 1px #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+		line-height: 2em;
+		z-index: 21;
+	}
+	
+	#message span {
+		position: relative;
+		top: 35%;
+		transform: translateY(-50%);
+		font-size:2em;
+	}
+
+ 	</style>
+	<script src="requestanimationframe.js"></script>
+  	<script type="application/javascript">
+
+rand = function(n){
+	return Math.floor(Math.random()*n);
+};
+
+var rms = 1.0;
+var is_chrome = navigator.userAgent.indexOf('Chrome') > -1;
+var is_safari = navigator.userAgent.indexOf("Safari") > -1;
+if ((is_chrome)&&(is_safari)) {is_safari=false;}
+
+function init() {
+	try {
+		// Fix up for prefixing
+		window.AudioContext = window.AudioContext||window.webkitAudioContext;
+		audioContext = new AudioContext();
+		var request = new XMLHttpRequest();
+		if (is_safari) request.open('GET', 'crk.m4a', true);
+		else request.open('GET', 'crk.ogg', true);
+		request.responseType = 'arraybuffer';
+		console.log('requesting');
+		// Decode asynchronously
+		request.onload = function() {
+			decode(request.response);
+		}
+		request.send();
+	} catch(e) {
+		console.log('Web Audio API is not supported in this browser');
+		drawCanvas();
+	}
+}
+var levelChecker;
+var decode = function(response) {
+	audioContext.decodeAudioData(response, function(buffer) {
+		backgroundAudio = audioContext.createBufferSource(); // creates a sound source
+		backgroundAudio.buffer = buffer; // tell the source which sound to play
+		backgroundAudio.connect(audioContext.destination); // connect the source to the context's destination (the speakers)
+		backgroundAudio.loop = true;
+		backgroundAudio.start(0);
+		levelChecker = audioContext.createScriptProcessor(2048, 1, 2);
+		backgroundAudio.connect(levelChecker);
+		levelChecker.connect(audioContext.destination);
+		levelChecker.onaudioprocess = process;
+		console.log('audio playing');
+		// start canvas
+		drawCanvas();
+	}, function(evt) {
+		console.log('failed to load buffer');
+		console.log(evt);
+		drawCanvas();
+	});
+}
+var process = function(e) {
+	var buffer = e.inputBuffer.getChannelData(0);
+	var len = buffer.length;
+	var total = 0;
+	var i = 0;
+	while ( i < len ) total += Math.abs( buffer[i++] );
+	rms = (rms + Math.sqrt( total / len )) * 0.5;
+	//console.log(rms);
+}
+
+var w;
+var h;
+var ctx;
+
+function drawCanvas() {
+
+	resize();
+	loadLine('','');
+
+	var num = 35;
+	var angle = (Math.PI*2)/num;
+	var size = 10;
+	var opening, phase1, phase2;
+	var pad = 25;
+	var thissize = 100;
+	function drawThis() {
+		var d = new Date();
+		var timer = d.getTime();
+		
+		phase1 = timer/25000;
+		phase2 = timer/2500;
+		phase3 = timer/100;
+		
+		for (var j=0; j<w; j+=size+pad) {
+		
+			ctx.fillStyle = 'rgba(100,250,100,1.0)';
+			
+			for (var i=0; i<h; i+=size+pad) {
+					//ctx.save();
+					ctx.beginPath();
+					ctx.arc(j,i,size,0,2*Math.PI);
+					ctx.fill();
+					//ctx.restore();
+			}
+		}
+		
+		var gray = parseInt((255-rms*100),10);
+		ctx.fillStyle = "rgba("+(gray+100)+",0,0,0.1)";
+		var sizex = thissize;
+		var sizey = thissize*rms;
+		for (var thisx=0; thisx<w; thisx += sizex*2 ) {
+			for (var thisy=0; thisy<h; thisy += sizey*2 ) {
+				var posX = w - ((timer + thisx*.8 - sizex*Math.sin(thisy) + sizex*10  + thisy) % (w + thissize));
+				var posY = h*.41 + Math.sin(phase2 + thisy)*10 - Math.cos(phase3 + thisx)*48;
+				ctx.save();
+				ctx.translate( posX, parseInt(posY,10) );
+				ctx.beginPath();
+				ctx.moveTo(-sizex,-sizey);
+				ctx.lineTo(-sizex,sizey);
+				ctx.lineTo(sizex,sizey);
+				ctx.lineTo(sizex,-sizey);
+				ctx.closePath();
+				ctx.fill();
+				ctx.restore();
+			}
+		}	
+		
+	}
+	
+	requestAnimationFrame( animate );
+	
+	var d = new Date();
+	var n = d.getTime();
+	var scrollvalue = 0;
+	var repeater = n;
+	var rperiod = 50;
+
+	function animate() {
+		requestAnimationFrame( animate );
+		ctx.clearRect(0,0,w,h);
+		drawThis();
+		
+		var dom = document.getElementById('message');
+		if (dom) {
+			var d2 = new Date();
+			var n2 = d2.getTime(); 
+
+			if (((n2-n) > 5800) && (n2-repeater) > rperiod) {
+				repeater = n2;
+				loadLine('',information[rand(information.length)]);
+			}
+		}
+	}
+}
+
+window.onresize = resize;
+
+function resize() {
+	w = window.innerWidth;
+	h = window.innerHeight;
+	
+	var canvas = document.getElementById("canvas");
+	canvas.setAttribute("width", w);
+	canvas.setAttribute("height", h);
+	
+	ctx = canvas.getContext("2d");
+	ctx.width = w;
+	ctx.height = h;
+}
+
+function loadLine(thisclass, thistext) {
+var content = '';
+content += '<span class="'+thisclass+'">'+thistext+'</span><br />';
+document.getElementById('message').innerHTML = content;
+}
+
+/*
+document.onmousemove = function (e) {mousePos(e);};
+
+var mouseX = 0;
+var mouseY = 0;
+
+function mousePos(e) {
+
+	var dom = document.getElementById("canvas");
+	var leftPad = dom.offsetLeft + dom.offsetParent.offsetLeft;
+	var topPad = dom.offsetTop + dom.offsetParent.offsetTop;
+
+	mouseX = e.pageX - leftPad; 
+	mouseY = e.pageY - topPad;
+	
+	return true;
+}*/
+
+var information = [
+'ArticaCC',
+'FCT',
+'7 Marco',
+'Demoilta #9',
+'invite',
+'Monte da Caparica',
+'16h00',
+'superbock',
+'ps',
+'.crk',
+'demos & bottles'
+];
+
+  </script>
+ </head>
+ <body onload="init()">
+ 	<div class="aligncenter">
+   		<canvas id="canvas" width="800" height="600"></canvas>
+   		<div id="message">descascando 3 cebolas virtuais...</div>
+   	</div>
+ </body>
+</html>
